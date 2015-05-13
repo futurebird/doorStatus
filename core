@@ -1,0 +1,108 @@
+// ---------------------------------------------
+// Check if the sensor is open. Send to Ubidots.
+// Ubidots is a web-based sensor data collection
+// service. 
+// ---------------------------------------------
+// susan.donovan@bcc.cuny.edu
+
+//Load HTTP libray needed to connect to Ubidots.com
+#include "HttpClient/HttpClient.h"
+HttpClient http;
+
+//These values come from Ubidots.
+#define VARIABLE_ID "UBIDOTS_ID123abc"
+#define VARIABLE_ID_analog "2ND_UBIDOTS_ID123abc" 
+#define TOKEN "superSecrectToken123abc"
+
+
+// Headers currently need to be set at init, useful for API keys etc.
+http_header_t headers[] = {
+
+    { "Content-Type", "application/json" },
+    { "X-Auth-Token" , TOKEN },
+    { NULL, NULL } // NOTE: Always terminate headers with NULL
+};
+
+http_request_t request;
+http_response_t response;
+
+// Declare a variables
+char resultstr[64];
+char resultstrAnalog[64];
+int unixTime = 0;
+int doorStat = 0;
+int doorStatOLD = 0;
+int rawAnalogStrength = 0;
+
+
+
+void setup() {
+//Create spark variables    
+    Spark.variable("isClosed", &doorStat, INT);
+    Spark.variable("whenToggle", &unixTime, INT);
+    Spark.variable("analogSignal", &rawAnalogStrength, INT);
+// Initialize D0 pin as output   
+    pinMode(D0, OUTPUT);
+    pinMode(A7, INPUT);
+    request.hostname = "things.ubidots.com";
+    request.port = 80;
+}
+
+
+void loop() {
+
+      
+// The returned value from the Core is going to be in the range from 0 to 4095
+        rawAnalogStrength = analogRead(A7); // Get a reading
+ 
+        if (rawAnalogStrength < 400) {
+            doorStatOLD = doorStat; // Save current value for later
+            doorStat = 1; //closed
+            digitalWrite(D0, LOW);    // Turn OFF the LED pins
+            delay(100); 
+        } else {
+            doorStatOLD = doorStat; // Save current value for later
+            doorStat = 0; //open
+            digitalWrite(D0, HIGH);   // Turn ON the LED pins
+            delay(100); 
+        }
+        
+
+ 
+
+if (doorStatOLD != doorStat) { //If the door has opened or closed since the last reading then
+// Send to Ubidots
+
+    request.path = "/api/v1.6/variables/"VARIABLE_ID_analog"/values"; //send sensor data
+    sprintf(resultstrAnalog, "{\"value\":%i}",rawAnalogStrength); 
+    request.body = resultstrAnalog;
+    http.post(request, response, headers);
+    Serial.println(response.body);
+
+    request.path = "/api/v1.6/variables/"VARIABLE_ID"/values"; //send binary result
+    sprintf(resultstr, "{\"value\":%i}",doorStat); 
+    request.body = resultstr;
+    http.post(request, response, headers);
+    Serial.println(response.body);
+    delay(100);   
+}
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
